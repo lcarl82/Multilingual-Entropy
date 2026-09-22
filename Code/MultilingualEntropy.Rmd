@@ -1,0 +1,2319 @@
+---
+title: "RUEG_Modeling"
+output: html_document
+date: "2026-07-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(lme4)
+```
+
+```{r}
+rueg <- read_csv("RUEGstats.csv")
+rueg <- rueg %>% select(-"...1")
+summary(rueg)
+anyNA(rueg)
+nrow(rueg)
+rueg_part <- rueg %>%
+  select(-tag, -ahead_entropy, -behind_entropy, -ahead_counts, -behind_counts) %>%
+  distinct(part, Mode, Formality, Gender, Heritage_Language, lemma_entropy, .keep_all = TRUE)
+
+
+summary(rueg_part)
+anyNA(rueg_part)
+nrow(rueg_part)
+```
+
+## Fixing/Collapsing Variables
+
+```{r}
+## collapsing the strings 0.0, 00, or 0 to just 0
+## also remove half year answers by flooring them as integers: 1.5 -> 1, 2.5 -> 2...
+
+rueg_part <- rueg_part %>%
+  mutate(age_of_onset = as.integer(na_if(na_if(age_of_onset, "***MISSING***"), "n/a")))
+
+rueg <- rueg %>%
+  mutate(age_of_onset = as.integer(na_if(na_if(age_of_onset, "***MISSING***"), "n/a")))
+
+rueg_part <- rueg_part %>%
+  mutate(
+    production_ease = case_when(
+      production_ease %in% c("easy", "very easy") ~ "easy",
+      production_ease %in% c("difficult", "very difficult") ~ "difficult",
+      TRUE ~ production_ease
+    )
+  )
+
+rueg <- rueg %>%
+  mutate(
+    production_ease = case_when(
+      production_ease %in% c("easy", "very easy") ~ "easy",
+      production_ease %in% c("difficult", "very difficult") ~ "difficult",
+      TRUE ~ production_ease
+    )
+  )
+
+table(rueg_part$age_of_onset[rueg_part$linguality == 'bilingual'])
+```
+
+## Looking at Individual Variables
+
+```{r}
+qqnorm(rueg_part$lemma_entropy^2)
+qqline(rueg_part$lemma_entropy^2)
+
+qqnorm(rueg_part$lemma_entropy^4)
+qqline(rueg_part$lemma_entropy^4)
+
+qqnorm(rueg_part$lemma_entropy)
+qqline(rueg_part$lemma_entropy)
+
+```
+```{r}
+qqnorm(log(rueg_part$Full_Length))
+qqline(log(rueg_part$Full_Length))
+
+qqnorm(sqrt(rueg_part$Full_Length))
+qqline(sqrt(rueg_part$Full_Length))
+
+qqnorm(rueg_part$Full_Length)
+qqline(rueg_part$Full_Length)
+```
+
+```{r}
+hist(rueg_part$Full_Length)
+hist(log(rueg_part$Full_Length))
+hist(sqrt(rueg_part$Full_Length))
+```
+```{r}
+hist(rueg_part$lemma_entropy^2)
+hist(rueg_part$lemma_entropy)
+```
+
+```{r}
+qqnorm(rueg_part$wordform_entropy)
+qqline(rueg_part$wordform_entropy)
+```
+
+
+```{r}
+hist(rueg_part$wordform_entropy)
+```
+```{r}
+qqnorm(rueg_part$num_langs)
+qqline(rueg_part$num_langs)
+```
+
+```{r}
+table(rueg_part$production_ease)
+table(rueg_part$linguality)
+table(rueg_part$num_langs)
+table(rueg_part$Heritage_Language)
+
+table(rueg_part$Gender)
+table(rueg_part$Age_Group)
+table(rueg_part$Mode)
+table(rueg_part$Formality)
+table(rueg_part$Country_of_Data)
+```
+
+
+```{r}
+## table(rueg_part$age_of_onset)
+
+table(rueg_part$age_of_onset[rueg_part$linguality == 'bilingual'])
+```
+
+## Dependent/Independent Variable Graphing
+
+```{r}
+ggplot(data = rueg_part, aes(lemma_entropy, production_ease)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, linguality)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, num_langs)) + 
+  geom_point()
+
+ggplot(data = rueg_part, aes(lemma_entropy, Heritage_Language)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, Gender)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, Age_Group)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, age_of_onset)) + 
+  geom_point()
+
+ggplot(data = rueg_part, aes(lemma_entropy, Mode)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(lemma_entropy, Formality)) + 
+  geom_boxplot()
+
+
+```
+```{r}
+ggplot(data = rueg_part, aes(wordform_entropy, production_ease)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, linguality)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, num_langs)) + 
+  geom_point()
+
+ggplot(data = rueg_part, aes(wordform_entropy, Heritage_Language)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, Gender)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, Age_Group)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, age_of_onset)) + 
+  geom_point()
+
+ggplot(data = rueg_part, aes(wordform_entropy, Mode)) + 
+  geom_boxplot()
+
+ggplot(data = rueg_part, aes(wordform_entropy, Formality)) + 
+  geom_boxplot()
+```
+
+```{r}
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, Age_Group)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(ahead_entropy, Formality)) +
+  geom_boxplot()
+```
+```{r}
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, Age_Group)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'ADJ') %>%
+  ggplot(aes(behind_entropy, Formality)) +
+  geom_boxplot()
+```
+
+
+```{r}
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, Age_Group)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(ahead_entropy, Formality)) +
+  geom_boxplot()
+```
+
+```{r}
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, Age_Group)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'NOUN') %>%
+  ggplot(aes(behind_entropy, Formality)) +
+  geom_boxplot()
+```
+
+
+```{r}
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, Age_Group)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(ahead_entropy, Formality)) +
+  geom_boxplot()
+```
+
+```{r}
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, production_ease)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, linguality)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, num_langs)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, Heritage_Language)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, Gender)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, Age_Group)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, age_of_onset)) +
+  geom_point()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, Mode)) +
+  geom_boxplot()
+
+rueg %>%
+  filter(tag == 'VERB') %>%
+  ggplot(aes(behind_entropy, Formality)) +
+  geom_boxplot()
+
+```
+
+## Model Making
+```{r}
+
+model_full <- lm(wordform_entropy ~ (age_of_onset + production_ease + Mode + Formality + Age_Group + Gender + num_langs + Heritage_Language)^2,  data = rueg_part)
+
+# summary(model_full)
+```
+```{r}
+model_2 <- update(model_full,
+                  . ~ .- Mode:Heritage_Language)
+
+model_3 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language)
+
+model_4 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs)
+
+model_5 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs)
+
+
+model_7 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality)
+model_8 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group)
+
+model_9 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs)
+
+model_10 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode)
+
+model_11 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender)
+
+model_12 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality)
+
+model_13 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs)
+
+model_14 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs)
+
+model_15 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender)
+
+model_16 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender
+                  - age_of_onset:Mode)
+
+model_17 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender
+                  - age_of_onset:Mode
+                  - Age_Group:Gender)
+
+model_18 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender
+                  - age_of_onset:Mode
+                  - Age_Group:Gender
+                  - production_ease:Mode)
+
+model_19 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender
+                  - age_of_onset:Mode
+                  - Age_Group:Gender
+                  - production_ease:Mode
+                  - Formality:Age_Group)
+```
+
+```{r}
+model_19 <- update(model_full,
+                  . ~ . - Mode:Heritage_Language
+                  - Formality:Heritage_Language
+                  - Gender:num_langs
+                  - Mode:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Formality:num_langs
+                  - Gender:Mode
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - age_of_onset:num_langs
+                  - Age_Group:num_langs
+                  - production_ease:Gender
+                  - age_of_onset:Mode
+                  - Age_Group:Gender
+                  - production_ease:Mode
+                  - Formality:Age_Group)
+
+summary(model_19)
+```
+```{r}
+AIC(model_full, model_19)
+anova(model_full, model_19)
+```
+
+```{r}
+rueg_part <- rueg_part %>%
+  mutate(speaker = substr(part, 1, 6))
+
+model_full <- lmer(wordform_entropy ~ (age_of_onset + production_ease + Mode + Formality + Age_Group + Gender + num_langs + Heritage_Language)^2 + (1 | speaker),  data = rueg_part , REML = FALSE)
+summary(model_full)
+```
+```{r}
+model_2 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language)
+
+model_3 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language)
+
+model_4 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality)
+
+model_5 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group)
+
+model_6 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language)
+
+model_7 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs)
+
+model_8 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs)
+
+model_9 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender)
+
+model_10 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs)
+
+model_11 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender)
+
+model_12 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality )
+
+model_13 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - production_ease:Mode)
+
+model_14 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - production_ease:Mode
+                  - Gender:num_langs)
+
+model_15 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - production_ease:Mode
+                  - Gender:num_langs
+                  - age_of_onset:Mode)
+
+model_16 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - production_ease:Mode
+                  - Gender:num_langs
+                  - age_of_onset:Mode
+                  - production_ease:Gender)
+```
+```{r}
+model_17 <- update(model_full,
+                  . ~ .- Formality:Heritage_Language
+                  - production_ease:Heritage_Language
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:num_langs
+                  - Formality:Gender
+                  - age_of_onset:Formality
+                  - production_ease:Mode
+                  - Gender:num_langs
+                  - age_of_onset:Mode
+                  - production_ease:Gender
+                  - Gender:Heritage_Language)
+
+drop1(model_17)
+```
+```{r}
+summary(model_17)
+
+```
+
+```{r}
+rueg$linguality_levels <- factor(rueg$linguality)
+linguality_model_full <- glm(linguality_levels ~ (Mode + Formality + Age_Group + Gender +
+                                      wordform_entropy + lemma_entropy + behind_entropy + ahead_entropy)^2, data = rueg, family = binomial)
+
+summary(linguality_model_full)
+```
+
+
+```{r}
+rueg$Heritage_Language_levels <- factor(rueg$Heritage_Language)
+linguality_model_full <- glm(Heritage_Language_levels ~ (Mode + Formality + Age_Group + Gender +
+                                      wordform_entropy + lemma_entropy + behind_entropy + ahead_entropy)^2, data = rueg, family = binomial)
+
+summary(linguality_model_full)
+```
+
+```{r}
+table(rueg$Gender)
+```
+
+How to use modeling to answer the original question of POS Entropy in prediction lingulaity-having trouble wrapping my head around what exactly that would look like?
+
+
+```{r}
+rueg_wide <- rueg %>%
+  pivot_wider(
+    id_cols = c(part, age_of_onset, production_ease, Mode, Formality, Gender, Heritage_Language, Age_Group, Country_of_Data, text, lemma_entropy, wordform_entropy, num_langs, linguality),
+    names_from = tag,
+    values_from = c(ahead_entropy, behind_entropy),
+    names_glue = "{tag}_{.value}"
+  )
+
+rueg_wide <- rueg_wide %>%
+  rename(
+    OTHER_ahead_entropy = '__ahead_entropy',
+    OTHER_behind_entropy = '__behind_entropy'
+  )
+
+predictors <- c("Mode",
+  "Formality",
+  "Age_Group",
+  "Gender",
+  "wordform_entropy",
+  "lemma_entropy",
+  "VERB_ahead_entropy",
+  "PART_ahead_entropy",
+  "CCONJ_ahead_entropy",
+  "PROPN_ahead_entropy",
+  "SCONJ_ahead_entropy",
+  "NOUN_ahead_entropy",
+  "DET_ahead_entropy",
+  "AUX_ahead_entropy",
+  "ADP_ahead_entropy",
+  "ADV_ahead_entropy",
+  "PRON_ahead_entropy",
+  "ADJ_ahead_entropy",
+  "INTJ_ahead_entropy",
+  "VERB_behind_entropy",
+  "PART_behind_entropy",
+  "CCONJ_behind_entropy",
+  "PROPN_behind_entropy",
+  "SCONJ_behind_entropy",
+  "NOUN_behind_entropy",
+  "DET_behind_entropy",
+  "AUX_behind_entropy",
+  "ADP_behind_entropy",
+  "ADV_behind_entropy",
+  "PRON_behind_entropy",
+  "ADJ_behind_entropy",
+  "INTJ_behind_entropy")
+
+```
+
+```{r}
+rueg_wide$Linguality_levels <- factor(rueg_wide$linguality)
+linguality_model_full <- glm(Linguality_levels ~ (Mode + Formality + Age_Group + Gender +
+     wordform_entropy + lemma_entropy +
+     VERB_ahead_entropy + PART_ahead_entropy +
+     CCONJ_ahead_entropy + PROPN_ahead_entropy +
+     SCONJ_ahead_entropy + NOUN_ahead_entropy +
+     DET_ahead_entropy + AUX_ahead_entropy +
+     ADP_ahead_entropy + ADV_ahead_entropy +
+     ADJ_ahead_entropy +
+     VERB_behind_entropy + PART_behind_entropy +
+     CCONJ_behind_entropy + PROPN_behind_entropy +
+     SCONJ_behind_entropy + NOUN_behind_entropy +
+     DET_behind_entropy + AUX_behind_entropy +
+     ADP_behind_entropy + ADV_behind_entropy +
+     ADJ_behind_entropy), data = rueg_wide, family = binomial)
+
+summary(linguality_model_full)
+```
+```{r}
+model_2 <- update(linguality_model_full,
+                  . ~ .- Mode)
+
+model_3 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy)
+model_4 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality)
+
+model_5 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy)
+
+model_6 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy)
+
+model_7 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy)
+                  
+model_8 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy)   
+                  
+model_9 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy) 
+
+model_10 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy)
+
+model_11 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy)
+
+model_12 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy)
+
+model_13 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy)
+
+model_14 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy)
+
+model_15 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy)
+
+model_16 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy)
+
+model_17 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy)
+
+model_18 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy)
+
+model_19 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender)
+
+model_20 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy)
+
+model_21 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy
+                  - ADP_behind_entropy)
+
+model_22 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy
+                  - ADP_behind_entropy
+                  - DET_ahead_entropy)
+
+model_23 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy
+                  - ADP_behind_entropy
+                  - DET_ahead_entropy
+                  - DET_behind_entropy)
+
+model_24 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy
+                  - ADP_behind_entropy
+                  - DET_ahead_entropy
+                  - DET_behind_entropy
+                  - AUX_ahead_entropy)
+```
+```{r}
+model_25 <- update(linguality_model_full,
+                  . ~ .- Mode
+                  - wordform_entropy
+                  - Formality
+                  - PART_behind_entropy
+                  - AUX_behind_entropy
+                  - CCONJ_ahead_entropy
+                  - NOUN_behind_entropy
+                  - CCONJ_behind_entropy
+                  - PROPN_behind_entropy
+                  - ADJ_ahead_entropy
+                  - PROPN_ahead_entropy
+                  - PART_ahead_entropy
+                  - ADV_behind_entropy
+                  - VERB_behind_entropy
+                  - SCONJ_behind_entropy
+                  - SCONJ_ahead_entropy
+                  - ADV_ahead_entropy
+                  - Gender
+                  - NOUN_ahead_entropy
+                  - ADP_behind_entropy
+                  - DET_ahead_entropy
+                  - DET_behind_entropy
+                  - AUX_ahead_entropy
+                  - ADP_ahead_entropy)
+summary(model_25)
+AIC(model_25, model_24)
+anova(model_25, model_24)
+
+```
+
+```{r}
+model_full <- lm(lemma_entropy ~ (age_of_onset + production_ease + Mode + Formality + Age_Group + Gender + num_langs + Heritage_Language)^2,  data = rueg_part)
+
+summary(model_full)
+```
+```{r}
+model_2 <- update(model_full,
+                  . ~ .- Gender:num_langs)
+
+model_3 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs)
+
+model_4 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality)
+
+model_5 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group)
+
+model_6 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language)
+
+model_7 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease)
+
+model_8 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs)
+
+model_9 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs)
+
+model_10 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender)
+
+model_11 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset)
+
+model_12 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender)
+
+model_13 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode)
+
+model_14 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender)
+
+model_15 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode)
+
+model_16 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs)
+
+model_17 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs
+                  - Formality:Heritage_Language)
+
+model_18 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs
+                  - Formality:Heritage_Language
+                  - Formality:Age_Group)
+
+model_19 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs
+                  - Formality:Heritage_Language
+                  - Formality:Age_Group
+                  - Age_Group:Gender)
+
+model_20 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs
+                  - Formality:Heritage_Language
+                  - Formality:Age_Group
+                  - Age_Group:Gender
+                  - production_ease:num_langs)
+```
+```{r}
+model_20 <- update(model_full,
+                  . ~ .- Gender:num_langs
+                  - Formality:num_langs
+                  - production_ease:Formality
+                  - production_ease:Age_Group
+                  - Mode:Heritage_Language
+                  - Gender:production_ease
+                  - age_of_onset:num_langs
+                  - Mode:num_langs
+                  - Mode:Gender
+                  - Formality:age_of_onset
+                  - age_of_onset:Gender
+                  - age_of_onset:Mode
+                  - Formality:Gender
+                  - production_ease:Mode
+                  - Age_Group:num_langs
+                  - Formality:Heritage_Language
+                  - Formality:Age_Group
+                  - Age_Group:Gender
+                  - production_ease:num_langs)
+
+#summary(model_19)
+# If ANOVA is above .05, delete
+anova(model_20, model_21)
+```
+```{r}
+model_full <- lmer(lemma_entropy ~ (age_of_onset + production_ease + Mode + Formality + Age_Group + Gender + num_langs + Heritage_Language)^2 + (1 | speaker),  data = rueg_part , REML = FALSE)
+summary(model_full)
+```
+```{r}
+model_2 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language)
+
+model_3 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality)
+
+model_4 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group)
+
+model_5 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language)
+
+model_6 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language)
+
+model_7 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs)
+
+model_8 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality)
+
+model_9 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender)
+
+model_10 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs)
+
+model_11 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs)
+
+model_12 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs
+                 - Formality:Gender)
+
+model_13 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs
+                 - Formality:Gender
+                 - Gender:num_langs)
+
+model_14 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs
+                 - Formality:Gender
+                 - Gender:num_langs
+                 - age_of_onset:Mode)
+
+model_15 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs
+                 - Formality:Gender
+                 - Gender:num_langs
+                 - age_of_onset:Mode
+                 - production_ease:Mode)
+```
+```{r}
+model_15 <- update(model_full,
+                 . ~ .- Formality:Heritage_Language
+                 - production_ease:Formality
+                 - production_ease:Age_Group
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - age_of_onset:num_langs
+                 - age_of_onset:Formality
+                 - Mode:Gender
+                 - Mode:num_langs
+                 - Formality:num_langs
+                 - Formality:Gender
+                 - Gender:num_langs
+                 - age_of_onset:Mode
+                 - production_ease:Mode)
+
+drop1(model_15)
+```
+```{r}
+rueg_wide <- rueg_wide %>%
+  mutate(speaker = substr(part, 1, 6))
+
+model_full <- lmer(VERB_ahead_entropy ~ (age_of_onset + wordform_entropy + lemma_entropy + production_ease + Mode + Formality + Age_Group + Gender + num_langs + Heritage_Language)^2 + (1 | speaker),  data = rueg_wide , REML = FALSE)
+```
+```{r}
+model_1 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease)
+
+model_2 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group)
+
+model_3 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease)
+
+model_4 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language)
+
+model_5 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language)
+
+model_6 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language)
+
+model_7 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language)
+
+model_8 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs)
+
+model_9 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language)
+
+model_10 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs)
+
+model_11 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group)
+
+model_12 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender)
+
+model_13 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode)
+
+model_14 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group)
+
+model_15 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs)
+
+model_16 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group)
+
+model_17 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs)
+
+model_18 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language)
+
+model_19 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs)
+
+model_20 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs)
+
+model_21 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender)
+
+model_22 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group)
+
+model_23 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs)
+
+model_24 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender)
+
+model_25 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group)
+
+model_26 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender)
+
+model_27 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender
+                 - wordform_entropy:Gender)
+
+model_28 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender
+                 - wordform_entropy:Gender
+                 - production_ease:Formality)
+
+model_29 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender
+                 - wordform_entropy:Gender
+                 - production_ease:Formality
+                 - Mode:Formality)
+
+model_30 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender
+                 - wordform_entropy:Gender
+                 - production_ease:Formality
+                 - Mode:Formality
+                 - age_of_onset:num_langs)
+
+model_31 <- update(model_full,
+                 . ~ .- wordform_entropy:production_ease
+                 - production_ease:Age_Group
+                 - lemma_entropy:production_ease
+                 - production_ease:Heritage_Language
+                 - Mode:Heritage_Language
+                 - Age_Group:Heritage_Language
+                 - age_of_onset:Heritage_Language
+                 - production_ease:num_langs
+                 - Gender:Heritage_Language
+                 - Age_Group:num_langs
+                 - lemma_entropy:Age_Group
+                 - Mode:Gender
+                 - age_of_onset:Mode
+                 - Mode:Age_Group
+                 - Gender:num_langs
+                 - wordform_entropy:Age_Group
+                 - Formality:num_langs
+                 - num_langs:Heritage_Language
+                 - wordform_entropy:num_langs
+                 - lemma_entropy:num_langs
+                 - production_ease:Gender
+                 - age_of_onset:Age_Group
+                 - Mode:num_langs
+                 - lemma_entropy:Gender
+                 - Formality:Age_Group
+                 - Formality:Gender
+                 - wordform_entropy:Gender
+                 - production_ease:Formality
+                 - Mode:Formality
+                 - age_of_onset:num_langs
+                 - num_langs)
+```
+```{r}
+summary(model_31)
+```
+
+```{r}
+
+```
+
